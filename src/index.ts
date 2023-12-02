@@ -37,3 +37,6 @@ process.on("unhandledRejection", (reason, promise) => {
   console.log("==== Reason ====")
   console.log(reason)
 })
+
+// Export the Express API
+module.exports = app
