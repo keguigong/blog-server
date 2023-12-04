@@ -2,16 +2,10 @@
   "version": 2,
   "installCommand": "yarn install && node node_modules/puppeteer/install.mjs",
   "buildCommand": "yarn build",
-  "builds": [
+  "rewrites": [
     {
-      "src": "./dist/index.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "./dist/index.js"
+      "source": "/api/(.*)",
+      "destination": "/api"
     }
   ]
 }

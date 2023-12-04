@@ -1,8 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: "be-express",
-      script: "./dist/index.js",
+      name: "blog-server",
+      script: "./dist/server.js",
       env_production: {
         NODE_ENV: "production",
       },

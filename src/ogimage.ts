@@ -1,14 +1,15 @@
-import { Router, Request, Response } from "express"
-import puppeteer from "puppeteer"
-import Handlebars from "handlebars"
+import { Router } from "express";
+import puppeteer from "puppeteer";
+import Handlebars from "handlebars";
+import chromium from "chrome-aws-lambda";
 
 function getFontSize(title = "") {
-  if (!title || typeof title !== "string") return ""
-  const titleLength = title.length
-  if (titleLength > 55) return "2.75rem"
-  if (titleLength > 35) return "3.25rem"
-  if (titleLength > 25) return "4.25rem"
-  return "4.75rem"
+  if (!title || typeof title !== "string") return "";
+  const titleLength = title.length;
+  if (titleLength > 55) return "2.75rem";
+  if (titleLength > 35) return "3.25rem";
+  if (titleLength > 25) return "4.25rem";
+  return "4.75rem";
 }
 
 const templateStyles = `
@@ -77,7 +78,7 @@ main {
   color: #6dd6ff;
   font-size: 1.25rem;
 }
-`
+`;
 
 const templateHTML = `
 <!DOCTYPE html>
@@ -112,72 +113,79 @@ const templateHTML = `
     </main>
   </body>
 </html>
-`
+`;
 
-const router = Router()
+const router = Router();
 
-router.get("/", async (req: Request, res: Response) => {
-  const siteName = (req.query["site_name"] as string) || process.env.SITE_NAME || "keguigong.org"
-  const title = (req.query["title"] as string) || ""
-  const path = (req.query["path"] as string) || ""
+router.get("/", async (req, res) => {
+  const siteName = (req.query["site_name"] as string) || process.env.SITE_NAME || "keguigong.org";
+  const title = (req.query["title"] as string) || "";
+  const path = (req.query["path"] as string) || "";
 
-  console.log(title, path)
+  console.log(title, path);
 
   const compiledStyles = Handlebars.compile(templateStyles)({
-    fontSize: getFontSize(title)
-  })
+    fontSize: getFontSize(title),
+  });
   // compiled HTML
   const compiledHTML = Handlebars.compile(templateHTML)({
     styles: compiledStyles,
     siteName,
     title,
-    path
-  })
+    path,
+  });
   // Launch Headless browser and capture creenshot
+  // const browser = await puppeteer.launch({
+  //   headless: "new",
+  //   args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  //   defaultViewport: {
+  //     width: 1200,
+  //     height: 630,
+  //   },
+  // });
   const browser = await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    defaultViewport: {
-      width: 1200,
-      height: 630
-    }
-  })
-  const page = await browser.newPage()
+    args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath,
+    headless: true,
+    ignoreHTTPSErrors: true,
+  });
+  const page = await browser.newPage();
   // Set the content to our rendered HTML
-  await page.setContent(compiledHTML, { waitUntil: "domcontentloaded" })
+  await page.setContent(compiledHTML, { waitUntil: "domcontentloaded" });
   // Wait until all images and fonts have loaded
   await page.evaluate(async () => {
-    const selectors = Array.from(document.querySelectorAll("img"))
+    const selectors = Array.from(document.querySelectorAll("img"));
     await Promise.all([
       document.fonts.ready,
       ...selectors.map((img) => {
         // Image has already finished loading, let’s see if it worked
         if (img.complete) {
           // Image loaded and has presence
-          if (img.naturalHeight !== 0) return
+          if (img.naturalHeight !== 0) return;
           // Image failed, so it has no height
-          throw new Error("Image failed to load")
+          throw new Error("Image failed to load");
         }
         // Image hasn’t loaded yet, added an event listener to know when it does
         return new Promise((resolve, reject) => {
-          img.addEventListener("load", resolve)
-          img.addEventListener("error", reject)
-        })
-      })
-    ])
-  })
+          img.addEventListener("load", resolve);
+          img.addEventListener("error", reject);
+        });
+      }),
+    ]);
+  });
 
-  const element = (await page.$("#body"))!
-  const image = await element.screenshot({ omitBackground: true })
-  await browser.close()
+  const element = (await page.$("#body"))!;
+  const image = await element.screenshot({ omitBackground: true });
+  await browser.close();
 
   res.set({
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET",
     "Content-Type": "image/png",
-    "Cache-Control": `immutable, no-transform, s-max-age=2592000, max-age=2592000`
-  })
-  res.send(image)
-})
+    "Cache-Control": `immutable, no-transform, s-max-age=2592000, max-age=2592000`,
+  });
+  res.send(image);
+});
 
-export default router
+export default router;
